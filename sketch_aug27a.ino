@@ -1,78 +1,76 @@
-#include <WiFiNINA.h>  //here i have Included library for WiFi connection 
+#include <WiFiNINA.h>   // WiFiNINA library for WiFi functionality
+#include <Wire.h>      // Wire library for I2C communication
+#include <BH1750.h>    //  BH1750 library for light sensor functionality
 
-// WiFi network credentials 
-char ssid[] = "oplus_co_apdmkd"; // wifi name
-char pass[] = "tohm3279"; //password
+// WiFi credentials
+char ssid [] = "oplus_co_apdmkd"; // SSID of the WiFi network
+char pass [] = "tohm3279";        // Password for the WiFi network
 
-WiFiClient client;  //  WiFi client object created for making HTTP request
+WiFiClient client;                 // Created a WiFiClient object for making HTTP requests
+BH1750 lightMeter;                 // Created an instance of the BH1750 light sensor library
 
-BH1750 lightMeter; // here i have created an instance of the BH1750 light sensor library
+String queryString = "?value1=57&value2=25"; // Query parameters for the IFTTT webhook
 
-const int ledCheck = 2;  // led pin to connect led
-
-// String containing data to send to the IFTTT webhook 
-String queryString = "?value1=57&value2=25";
-
-// Web server address and path for the IFTTT webhook trigger
-char HOST_NAME[] = "maker.ifttt.com";
-String PATH_NAME = "https://maker.ifttt.com/trigger/3.1P/with/key/n585t7sKIA-lZdXyFEGxe6gzpGsdXKs7-wyZMYWHyOI";
+// IFTTT configuration
+char HOST_NAME[] = "maker.ifttt.com"; // Host name for IFTTT
+String PATH_NAME = "https://maker.ifttt.com/trigger/3.1P/with/key/n585t7sKIA-lZdXyFEGxe6gzpGsdXKs7-wyZMYWHyOI"; // IFTTT webhook URL with key
 
 void setup() {
-  Serial.begin(9600);          // Initialize serial communication for debugging
+    WiFi.begin(ssid, pass);           // Begin WiFi connection with credentials
+    Serial.begin(9600);               // Start serial communication at 9600 baud rate
 
-  pinMode(ledCheck, OUTPUT);   // Setting the LED pin as output
+    pinMode(ledCheck, OUTPUT);        // Set the LED pin as an output
 
-  Wire.begin();               // Initialize I2C communication
-  lightMeter.begin();          // Initialize the BH1750 light sensor
+    Wire.begin();                     // Initialize I2C communication
+    lightMeter.begin();               // Initialize the BH1750 light sensor
+    Serial.println(F("BH1750 Test begin")); // Print a message indicating the test has started
 
-  Serial.println(F("BH1750 Test begin"));
-
-  connectWiFi();               // Attempt to connect to WiFi network
+    // Attempt to connect to WiFi
+    connectWiFi();                    
 }
 
 void loop() {
-  float lux = lightMeter.readLightLevel(); // Read light level from sensor
-  Serial.print("Lux: ");
-  Serial.println(lux);
+    float lux = lightMeter.readLightLevel(); // Read the light level in lux
+    Serial.print("Lux: ");                   // Print "Lux: " to the serial monitor
+    Serial.println(lux);                      // Print the light level to the serial monitor
 
-  // Trigger IFTTT webhook based on light level thresholds 
-  if (lux >= 360) {
-    triggerWebhook("Sunlight");  // Send "Sunlight" event if lux is high
-  } else if (lux < 80) {
-    triggerWebhook("Sundown");   // Send "Sundown" event if lux is low
-  }
-
-  delay(60000);                 // Wait for 1 minute before next reading
+    // Check the light level and trigger the corresponding webhook
+    if (lux >= 360) {
+        triggerWebhook("Sunlight");          // Trigger webhook for sunlight condition
+    } else if (lux < 80) {
+        triggerWebhook("Sundown");           // Trigger webhook for sundown condition
+    }
+    
+    delay(60000); // Wait for 1 minute before reading light level again
 }
 
 void connectWiFi() {
-  Serial.println("Attempting to connect to WiFi...");
-
-  // Keep trying to connect wifi until successful
-  while (WiFi.status() != WL_CONNECTED) {
-    WiFi.begin(ssid, pass);
-    delay(5000);                 // Wait 5 seconds before retrying
-    Serial.print(".");
-  }
-
-  Serial.println("\nConnected to WiFi");
+    Serial.println("Attempting to connect to WiFi..."); // Print message indicating WiFi connection attempt
+    while (WiFi.status() != WL_CONNECTED) {              // Loop until connected to WiFi
+        WiFi.begin(ssid, pass);                          // Reattempt to connect
+        delay(5000); // Wait 5 seconds before retrying
+        Serial.print("."); // Print a dot to indicate progress
+    }
+    Serial.println("\nConnected to WiFi"); // Print message indicating successful connection
 }
 
 void triggerWebhook(String eventName) {
-  if (WiFi.status() != WL_CONNECTED) {  // Check WiFi connection before sending
-    connectWiFi();                       // Reconnect if necessary
-  }
+    // Check if the device is connected to WiFi
+    if (WiFi.status() != WL_CONNECTED) {
+        connectWiFi(); // Reconnect to WiFi if not connected
+    }
 
-  // Connect to IFTTT webhook server and send HTTP request
-  if (client.connect(HOST_NAME, 80)) {
-    client.println("GET " + PATH_NAME + queryString + " HTTP/1.1");
-    client.println("Host: " + String(HOST_NAME));
-    client.println("Connection: close");
-    client.println();
-    delay(500);
-    client.stop();
-    Serial.println("Webhook triggered successfully for: " + eventName);
-  } else {
-    Serial.println("Failed to connect to webhook server");
-  }
+    // Attempt to connect to the webhook server
+    if (client.connect("maker.ifttt.com", 80)) {
+        // Send the HTTP GET request
+        client.println("GET " + PATH_NAME + queryString + " HTTP/1.1");
+        client.println("Host: " + String(HOST_NAME)); // Specify the host
+        client.println("Connection: close"); // Close the connection after the request
+        client.println(); // End of headers
+        delay(500); // Wait for a moment to ensure request is sent
+        client.stop(); // Close the connection
+        Serial.println("Webhook triggered successfully"); // Print success message
+    } else {
+        Serial.println("Failed to connect to webhook server"); // Print failure message
+    }
 }
